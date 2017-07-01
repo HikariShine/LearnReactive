@@ -33,8 +33,115 @@ public class TestAllOperator {
 	}
 
 	@Test
-	public void testMergeAndMergeSequential() {
-		
+	public void testMergeAndMergeSequentialAndConcat() throws InterruptedException {
+		Flux<Integer> flux1 = Flux.range(1, 10)
+				.delaySubscription(Duration.ofMillis(200))
+				.delayElements(Duration.ofMillis(100));
+		Flux<Integer> flux2 = Flux.range(11, 10)
+				.delaySubscription(Duration.ofMillis(100))
+				.delayElements(Duration.ofMillis(300));
+		// 这个就是普通的merge，每来一个元素都发布出去。
+		System.out.println("merge");
+		Flux.merge(flux1, flux2)
+				.subscribe(System.out::println);
+		Thread.sleep(5000);
+
+		System.out.println("mergeSequential");
+		flux1 = Flux.range(1, 10)
+				.delaySubscription(Duration.ofMillis(4000))
+				.delayElements(Duration.ofMillis(100));
+		flux2 = Flux.range(11, 10)
+				.delaySubscription(Duration.ofMillis(2000))
+				.delayElements(Duration.ofMillis(300));
+		// 顺序merge，最先到的元素所在的flux在全部发送出去之后，才发送第二个flux的全部，以此类推。
+		// 有点类似于concat，这个sequential是指merge的sequential，就是参数的顺序。、
+		// 与concat最终顺序也是一致的，唯一的不同就是mergeSequential是多个同时订阅，同时收取全部数据
+		// 当一个flux全部发送出去之后，马上发送其他flux之前收集到的数据。相当于多个是同时订阅的。
+		Flux.mergeSequential(flux1, flux2)
+				.subscribe(System.out::println);
+		Thread.sleep(8000);
+
+		System.out.println("concat");
+		flux1 = Flux.range(1, 10)
+				.delaySubscription(Duration.ofMillis(4000))
+				.delayElements(Duration.ofMillis(100));
+		flux2 = Flux.range(11, 10)
+				.delaySubscription(Duration.ofMillis(2000))
+				.delayElements(Duration.ofMillis(300));
+		// 这个与上面的不同是第一个订阅并且发布完成之后，才开始订阅第二个。
+		Flux.concat(flux1, flux2)
+				.subscribe(System.out::println);
+		Thread.sleep(12000);
+		// 还有两个delayError，请参考下面的testConcatDelayError
+	}
+
+	@Test
+	public void testDefer() throws InterruptedException {
+		// 延迟执行直到有订阅者，当有订阅者订阅时才执行defer内的supplier，返回publisher，开始获取数据。
+		Flux flux = Flux.defer(() -> {
+			try {
+				Thread.sleep(3000);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+			return Flux.range(0,10);
+		}).delayElements(Duration.ofMillis(200));
+		System.out.println("defer");
+		Thread.sleep(3000);
+		System.out.println("start");
+		// 这之后又延迟了三秒，说明先执行了supplier，再订阅
+		flux.subscribe(System.out::println);
+		Thread.sleep(3000);
+		flux = Flux.range(0,10).delayElements(Duration.ofMillis(200));
+		System.out.println("no defer");
+		Thread.sleep(3000);
+		System.out.println("start");
+		flux.subscribe(System.out::println);
+		Thread.sleep(3000);
+	}
+
+	@Test
+	public void testRangeAndInterval() throws InterruptedException {
+		// 没啥说的，字面意思
+		Flux.range(0 ,100).subscribe(System.out::println);
+		// hot Observable，无限发送
+		// 只有一个参数时是period，此时delay与period相同
+		Flux.interval(Duration.ofMillis(1000)).subscribe(System.out::println);
+		Thread.sleep(5000);
+	}
+
+	@Test
+	public void testConcatDelayError() throws InterruptedException {
+		// 与concat唯一的不同是如果某一个flux发送了一个error，这个concat会把error留着，直到其他正常的flux都发送完毕在发送这个error
+		Flux.concatDelayError(Flux.error(new RuntimeException("试试")), Flux.range(1, 10)
+				.delaySubscription(Duration.ofMillis(1000)).delayElements(Duration.ofMillis(200)))
+				.subscribe(System.out::println, e -> System.out.println(e));
+		Thread.sleep(5000);
+		Flux.concat(Flux.error(new RuntimeException("试试")), Flux.range(1, 10)
+				.delaySubscription(Duration.ofMillis(1000)).delayElements(Duration.ofMillis(200)))
+				.subscribe(System.out::println, e -> System.out.println(e));
+		Thread.sleep(5000);
+	}
+
+	@Test
+	public void testSimpleFlux() {
+		// 直接发送一个空的完成通知
+		Flux.empty();
+		// 直接发送一个错误
+		Flux.error(new RuntimeException("只发送错误"));
+		// 直接发送一个或多个数据
+		Flux.just("1", "2");
+	}
+
+	@Test
+	public void testFirstEmitting() throws InterruptedException {
+		// 之前的amb操作符，选出第一个发送任何通知（包括error）的publisher，只发送他的全部值
+		Flux.firstEmitting(Flux.range(1, 10)
+				.delaySubscription(Duration.ofMillis(1500)).delayElements(Duration.ofMillis(200)),
+				Flux.range(11, 10)
+				.delaySubscription(Duration.ofMillis(1000)).delayElements(Duration.ofMillis(200)))
+				.subscribe(System.out::println);
+		Thread.sleep(5000);
 	}
 
 }

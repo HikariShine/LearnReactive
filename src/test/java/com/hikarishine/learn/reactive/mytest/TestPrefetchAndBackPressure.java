@@ -11,6 +11,9 @@ public class TestPrefetchAndBackPressure {
 
 	@Test
 	public void testHotFluxPrefetch() throws InterruptedException {
+		// 除了create之外还有个generate，不同之处在于create中的sink是FluxSink，支持pull和push，即支持cold和hot，也即同步和异步
+		// on前缀是接收到pull请求，next是主动发送数据。
+		// 而generate是SynchronousSink，只支持同步的发送，即next
 		Flux<Integer> hotFlux = Flux.create(sink -> {
 			// 这个是同步发送数据，属于hot的
 			try {

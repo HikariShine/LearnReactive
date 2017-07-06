@@ -5,8 +5,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 import reactor.core.scheduler.Schedulers;
 
-import java.time.Duration;
-
 public class TestPrefetchAndBackPressure {
 
 	@Test
